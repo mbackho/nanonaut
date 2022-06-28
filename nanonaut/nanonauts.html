@@ -1,0 +1,642 @@
+
+<HTML>
+
+<HEAD>
+
+<TITLE> Nanonaut Action </TITLE>
+
+
+</HEAD>
+
+
+
+<BODY onload="setup()">
+    	
+
+<SCRIPT>
+
+
+
+//CONSTANTS and global variables.
+var CANVAS_WIDTH=window.innerWidth;
+var CANVAS_HEIGHT=window.innerHeight-20;
+var MAX_BUSHES=15;
+var MAX_ROBOTS=3;
+var MAX_COINS=1;
+var NANONAUT_WIDTH=181;
+var NANONAUT_HEIGHT=229;
+var GROUND_Y = CANVAS_HEIGHT-80; //540;
+var NANONAULT_Y_ACCELERATION=1;
+var NANONAUT_JUMP_SPEED = 20;
+var NANONAUT_X_SPEED = 5;
+var BACKGROUND_WIDTH=1000;
+var NANONAUT_NR_FRAMES_PER_ROW = 5;
+var NANONAUT_NR_ANIMATION_FRAMES = 7;
+
+
+var canvas = document.createElement("canvas");
+canvas.width = CANVAS_WIDTH;
+canvas.height = CANVAS_HEIGHT;
+document.body.appendChild(canvas);
+var c = canvas.getContext("2d");
+
+
+var nanonauntImage = new Image();
+nanonauntImage.src = 'animatednanonaut.png';
+
+var robotImage = new Image();
+robotImage.src = 'animatedRobot2.png';
+
+var backgroundImage = new Image();
+backgroundImage.src = 'background.png';
+
+var bush1Image = new Image();
+bush1Image.src = 'bush1.png';
+
+var bush2Image = new Image();
+bush2Image.src = 'bush2.png';
+
+
+var coinImage = new Image();
+coinImage.src = 'coins.png';
+
+var myAudio = new Audio('background.wav');
+myAudio.loop =true;
+myAudio.addEventListener('ended', function() {
+        this.currentTime = 0;
+        this.play();
+    }, false);
+
+var jumpAudio = new Audio('jump.wav');
+var crashAudio = new Audio('crash.wav');
+var coinAudio = new Audio('coin.wav');
+
+var seconds = 0;
+var frames = 0;
+var fps = 0;
+
+var gameIncrement = 20;  // Update difficulty every 20 seconds
+var characters = new Array();
+
+var health=100;
+var score=0;
+var gameState="start";
+var screenShake=false;
+var screenShakeTime=0;
+
+//var nanonautX =  CANVAS_WIDTH / 2;
+//var nanonautY = GROUND_Y - NANONAUT_HEIGHT;
+//var nanonautYSpeed=0;
+var spaceKeyIsPressed = false;
+var nanonautIsInAir = false;
+
+
+window.addEventListener ('keydown', onKeyDown);
+window.addEventListener ('keyup', onKeyUp);
+
+
+
+
+//SETUP
+function setup()
+{
+
+
+  seconds = 0;
+  frames = 0;
+  fps = 0;
+
+  characters = new Array();
+
+  health=100;
+  score=0;
+  gameState="start";
+  screenShake=false;
+  screenShakeTime=0;
+
+//  nanonautX =  CANVAS_WIDTH / 2;
+//  nanonautY = GROUND_Y - NANONAUT_HEIGHT;
+//  nanonautYSpeed=0;
+  spaceKeyIsPressed = false;
+  nanonautIsInAir = false;
+//  cameraX = 0;
+//  cameraY = 0;
+//  nanonautFrameNum=0;
+
+    characters[0] = new Object();
+	characters[0].name = "NANONAUT";
+	characters[0].X = CANVAS_WIDTH / 2;;
+	characters[0].Y = GROUND_Y - NANONAUT_HEIGHT;
+    characters[0].cameraX = characters[0].X - 150;
+	characters[0].cameraY = 0;
+	characters[0].image = nanonauntImage;
+	characters[0].width = NANONAUT_WIDTH;
+	characters[0].height = NANONAUT_HEIGHT;
+	characters[0].XSpeed = 1;
+	characters[0].YSpeed = 0;
+	characters[0].YAcceleration=1;
+	characters[0].jumpSpeed=-22;
+	characters[0].inTheAir = false;
+	characters[0].numFrames = 7;
+	characters[0].framesPerRow = 5;
+	characters[0].curFrame = 0;
+	characters[0].offsetX = 70;
+	characters[0].offsetY = 40;
+
+
+	   
+
+
+
+    draw();
+
+
+}
+
+
+function start () {
+   
+	
+	updateAnimationCounter();
+	updateFPS();
+
+    mainLoop();
+  
+    console.log ("hello Nanonaut Humans!!!");
+
+}
+
+
+function onKeyDown (event) {
+   if (event.keyCode === 32) {
+       spaceKeyIsPressed = true;
+   }
+   
+}
+
+function onKeyUp (event) {
+   if (gameState == "start" || gameState == "end")
+   {
+      setup();
+	  gameState = "run";
+      myAudio.play();
+	  start();
+   }     
+
+   
+	if (gameState == "run" && event.keyCode === 32) {
+       spaceKeyIsPressed = false;
+  	   jumpAudio.currentTime=0;
+	   jumpAudio.play();
+	}
+	
+}
+
+function updateFPS () {
+    seconds++;
+	fps = Math.floor(frames / seconds);
+
+    window.setTimeout (updateFPS, 1000);
+}
+
+
+
+function updateAnimationCounter () {
+    
+	if (gameState == "run" && characters)
+    {
+	  for (i in characters)
+	  {	
+	     characters[i].curFrame++;
+	     if (characters[i].curFrame >= characters[i].numFrames)
+	        characters[i].curFrame=1;
+	  }	
+	}
+	
+	if (screenShake)
+	{
+	   screenShakeTime += 50;
+
+		if (screenShakeTime > 500){
+		  screenShakeTime=0;
+		  screenShake=false;
+		}
+	}
+
+	if ((seconds/gameIncrement % 5 == 0) && MAX_ROBOTS < 5)  // add robots as game gets faster
+	   MAX_ROBOTS = MAX_ROBOTS + 1;
+
+
+	window.setTimeout(updateAnimationCounter, 50);
+    
+	
+}
+
+function update()
+{
+    var numBushes = 0;
+	var numRobots = 0;
+	var lastBushX = 0;
+	var lastRobotX = 0;
+	var numCoins = 0;
+	var lastCoinX = 0;
+    var i = 0;
+	
+	
+	//Update all the active characters...
+    while (i < characters.length)
+	{
+		
+		characters[i].X = characters[i].X + characters[i].XSpeed;
+		
+		// Nanonaut
+		if (characters[i].name === "NANONAUT")
+		{
+			characters[i].cameraX = characters[i].X - 150;
+
+			if (spaceKeyIsPressed && !characters[i].inTheAir) {
+			   characters[i].YSpeed = characters[i].jumpSpeed;
+			   characters[i].inTheAir = true;
+			}
+					
+			
+			if (characters[i].Y > (GROUND_Y - characters[i].height )) {
+			   characters[i].Y = GROUND_Y - characters[i].height;
+			   characters[i].YSpeed = 0;
+			   characters[i].inTheAir=false;
+			 } else {
+			   
+			   characters[i].Y = characters[i].Y + characters[i].YSpeed;
+			   characters[i].YSpeed += characters[i].YAcceleration;
+			} 
+
+        
+
+		}
+		
+		// Update Bushes
+		if (characters[i].name === "BUSH")
+		{
+		   
+		   //characters[i].X = characters[i].X + characters[i].XSpeed;
+		   if ((characters[i].X + characters[i].width) < 0)
+		   {
+               //numBushes--;
+               characters.splice(i,1);
+			   i--;
+			}
+		   else
+		   {
+			   if (characters[i].X > lastBushX)
+			    lastBushX = characters[i].X;
+			   numBushes++;
+			}
+	
+		}
+
+		// Update Coins
+		if (characters[i].name === "COIN")
+		{
+		   
+		   if ((characters[i].X < CANVAS_WIDTH)  && (checkIfCollision(characters[0], characters[i])))
+		   {
+            		if (health + 20 < 100)
+					{
+			           health = health+20;
+					   score = score + 500;
+					}
+					else 
+					{
+					   health = 100;
+					   score = score + 1000;
+					}
+					
+					coinAudio.currentTime=0;
+					coinAudio.play();
+					characters.splice(i,1);
+			        i--;
+		   }
+		   else
+		   {
+			//characters[i].X = characters[i].X + characters[i].XSpeed;
+			if ((characters[i].X + characters[i].width) < 0)
+			{
+				//numBushes--;
+				characters.splice(i,1);
+				i--;
+				}
+			else
+			{
+				if (characters[i].X > lastCoinX)
+					lastCoinX = characters[i].X;
+				numCoins++;
+				}
+		   }
+		}
+
+
+		// Update robots
+		if (characters[i].name === "ROBOT")
+		{
+		   numRobots++;
+		   
+		   if ((characters[i].X < CANVAS_WIDTH)  && (checkIfCollision(characters[0], characters[i])) && !screenShake)
+		   {
+            		screenShake=true;
+					health = health-10;
+					crashAudio.currentTime=0;
+					crashAudio.play();
+		   }
+				
+		  
+		   if ((characters[i].X + characters[i].width) < 0)
+			{
+					//numRobots--;
+					characters.splice(i,1);
+					i--;
+					score=score+(10 * (1+Math.floor(seconds/gameIncrement)));
+				}
+				else
+				{ 
+					if (characters[i].X > lastRobotX)
+							lastRobotX = characters[i].X;
+					numRobots++;
+				}
+			
+
+		   }
+		
+        if (health <= 0) 
+		{
+           health=0;
+		   gameState="end";
+
+		}
+
+
+
+		if (i>0) {
+
+			characters[i].cameraX = 0;
+			characters[i].cameraY = 0;
+
+			if (screenShake)
+			{
+				characters[i].cameraX += (Math.random() - 0.5) * 16;
+				characters[i].cameraY += (Math.random() - 0.5) * 16;
+			}
+		}
+
+	    i++;
+		
+    }
+
+
+	
+	
+	while (numBushes < MAX_BUSHES)
+	{
+	    var i = characters.length;
+	    
+		characters[i] = new Object();
+		characters[i].name = "BUSH";
+		
+		lastBushX = lastBushX + 100 + (Math.random() * 200);
+		characters[i].X = Math.floor (lastBushX);
+		characters[i].Y = Math.floor (GROUND_Y - (Math.random() * 20));
+		
+
+		if (Math.random() > 0.5)
+		   characters[i].image = bush1Image;
+		else
+		   characters[i].image = bush2Image;
+		   
+		characters[i].width = 181;
+		characters[i].height = 229;
+		characters[i].cameraX = 0;
+	    characters[i].cameraY = 0;
+		characters[i].XSpeed = -2;
+		characters[i].YSpeed = 0;
+		characters[i].YAcceleration=0;
+		characters[i].jumpSpeed=0;
+		characters[i].inTheAir = false;
+		characters[i].numFrames = 1;
+		characters[i].framesPerRow = 1;
+		characters[i].curFrame = 1;
+	
+		
+		numBushes++;
+		
+	}
+	
+	
+	// Add mew Robots
+	
+	while (numRobots < MAX_ROBOTS)
+	{
+        var i = characters.length;
+
+        if (lastRobotX < CANVAS_WIDTH)
+            lastRobotX = CANVAS_WIDTH;
+			
+		lastRobotX = lastRobotX + 400 + (Math.random() * 200);
+        
+
+		characters[i] = new Object();
+		characters[i].name = "ROBOT";
+		characters[i].width = 140;
+		characters[i].height = 140;
+        
+		characters[i].X=lastRobotX;
+		characters[i].Y=GROUND_Y-characters[i].height;
+		characters[i].image = robotImage;
+		characters[i].cameraX = 0;
+	    characters[i].cameraY = 0;
+		characters[i].XSpeed = -5 - Math.floor((seconds+1)/gameIncrement);
+		characters[i].YSpeed = 0;
+		characters[i].YAcceleration=0;
+		characters[i].jumpSpeed=0;
+		characters[i].inTheAir = false;
+		characters[i].numFrames = 9;
+		characters[i].framesPerRow = 3;
+		characters[i].curFrame = 1;
+		characters[i].offsetX = 20;
+	    characters[i].offsetY = 15;
+
+		numRobots++;
+	}
+	
+	
+
+	// Add mew coins
+	
+	while (numCoins <= MAX_COINS)
+	{
+        var i = characters.length;
+
+        if (lastCoinX < CANVAS_WIDTH)
+            lastCoinX = CANVAS_WIDTH;
+			
+		lastCoinX = lastCoinX + 400 + (Math.random() * 2000);
+
+
+		characters[i] = new Object();
+		characters[i].name = "COIN";
+		characters[i].width = 56;
+		characters[i].height = 70;
+        
+		characters[i].X=lastCoinX;
+		characters[i].Y=GROUND_Y-300-characters[i].height;
+		characters[i].image = coinImage;
+		characters[i].cameraX = 0;
+	    characters[i].cameraY = 0;
+		characters[i].XSpeed = -2;
+		characters[i].YSpeed = 0;
+		characters[i].YAcceleration=0;
+		characters[i].jumpSpeed=0;
+		characters[i].inTheAir = false;
+		characters[i].numFrames = 6;
+		characters[i].framesPerRow = 3;
+		characters[i].curFrame = 1;
+		characters[i].offsetX = 1;
+	    characters[i].offsetY = 1;
+
+		numCoins++;
+	}
+
+
+	
+}
+
+
+function checkIfCollision(c1, c2)
+{
+
+	var c1nearX=c1.X-c1.cameraX+c1.offsetX;
+    var c1farX=c1.X-c1.cameraX+c1.width-c1.offsetX;
+	var c1nearY=c1.Y-c1.cameraY+c1.offsetY; 
+	var c1farY=c1.Y+c1.height-c1.cameraY-c1.offsetY;
+	var c2nearX=c2.X-c2.cameraX+c2.offsetX;
+	var c2farX=c2.X-c2.cameraX+c2.width-c2.offsetX;
+	var c2nearY=c2.Y-c2.cameraY+c2.offsetY;
+	var c2farY=c2.Y+c2.height-c2.cameraY-c2.offsetY;
+
+
+
+    var nearEdgeX =  (c1farX >= c2nearX) && (c1farX <= c2farX);
+    var farEdgeX =  (c1nearX >= c2nearX) && (c1nearX <= c2farX);
+	var fullOverlapX =  (c1nearX <= c2nearX) && (c1farX >= c2farX);
+
+	var nearEdgeY =  (c1farY >= c2nearY) && (c1farY <= c2farY);
+    var farEdgeY =  (c1nearY >= c2nearY) && (c1nearY <= c2farY);
+	var fullOverlapY =  (c1nearY <= c2nearY) && (c1farY >= c2farY);
+
+    var hit =  (nearEdgeX || farEdgeX || fullOverlapX) && (nearEdgeY || farEdgeY || fullOverlapY);
+    if (hit)
+	  console.log("ouch");
+
+	return (nearEdgeX || farEdgeX || fullOverlapX) && (nearEdgeY || farEdgeY || fullOverlapY);
+
+}
+
+
+function draw()
+{
+    var backgroundX = - (characters[0].cameraX % BACKGROUND_WIDTH);
+	
+    c.clearRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+
+    // draw the sky
+	c.fillStyle = "LightSkyBlue";
+	c.fillRect(0,0, CANVAS_WIDTH, GROUND_Y-40);
+	
+	//draw the background image
+	c.drawImage (backgroundImage, backgroundX, -210);
+	c.drawImage (backgroundImage, backgroundX + BACKGROUND_WIDTH, -210);
+	c.drawImage (backgroundImage, backgroundX + (BACKGROUND_WIDTH*2), -210);
+	
+    // draw the ground 
+	c.fillStyle = "ForestGreen";
+	c.fillRect(0,GROUND_Y-40, CANVAS_WIDTH, CANVAS_HEIGHT-GROUND_Y+40);
+  
+	
+    // draw the characters
+	for (i in characters)
+	{
+	
+	    if (characters[i].numFrames > 1)
+		{
+			var spriteSheetRow = Math.floor(characters[i].curFrame / characters[i].framesPerRow);
+			var spriteSheetCol = characters[i].curFrame % characters[i].framesPerRow;
+			var spriteSheetX = spriteSheetCol * characters[i].width;
+			var spriteSheetY = spriteSheetRow * characters[i].height;
+            
+			c.drawImage(characters[i].image, spriteSheetX, spriteSheetY, characters[i].width, characters[i].height, 
+					characters[i].X - characters[i].cameraX, characters[i].Y - characters[i].cameraY, characters[i].width, characters[i].height);
+	    }
+		else
+		{
+			c.drawImage(characters[i].image, characters[i].X - characters[i].cameraX, characters[i].Y - characters[i].cameraY);
+		}
+		
+        if (characters[i].offsetX && characters[i].offsetY)
+		{
+			//c.strokeRect(characters[i].X-characters[i].cameraX+characters[i].offsetX, characters[i].Y-characters[i].carmeraY+characters[i].offsetY, 
+			//                  characters[i].width-characters[i].offsetX, characters[i].height-characters[i].offsetY);
+		    c.strokeRect(characters[i].X-characters[i].cameraX+characters[i].offsetX, characters[i].Y-characters[i].cameraY+characters[i].offsetY, 
+			                  characters[i].width-(2*characters[i].offsetX), characters[i].height-(2*characters[i].offsetY));
+		}
+
+	}
+
+	// score and health
+	c.font = "20px sans-serif";
+	c.fillText(fps,10,CANVAS_HEIGHT-10);
+    c.fillText("Score: " + score ,20,30);
+	c.fillText("Health: " ,CANVAS_WIDTH-500,30);
+	c.fillStyle="white";
+	c.fillRect(CANVAS_WIDTH-400,15, 380, 40);
+	c.fillStyle="red";
+	c.fillRect(CANVAS_WIDTH-390, 20, ((health / 100) * 360), 30);
+	
+	if (gameState=="end")
+	{
+	    c.fillStyle = "black";
+	    c.font = "96px sans-serif";
+		c.fillText("GAME OVER!!!",(CANVAS_WIDTH-400)/2,CANVAS_HEIGHT/2);
+		myAudio.pause();
+	}
+
+    if (gameState=="end" || gameState =="start")
+	{
+		c.fillStyle = "red";
+	    c.font = "48px sans-serif";
+		c.fillText("Press any key to start!",(CANVAS_WIDTH-300)/2,CANVAS_HEIGHT/2-100);
+		
+	}
+
+}
+
+
+
+function mainLoop() {
+
+    frames++;
+	
+	if (gameState=="run")
+	   update();
+
+    draw();
+
+    window.requestAnimationFrame(mainLoop)
+	
+}
+
+
+
+</SCRIPT>
+
+
+</BODY>
+
+</HTML>
